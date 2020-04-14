@@ -4,8 +4,16 @@ extract DeLF local features
 '''
 
 import os, sys, time
-sys.path.append('../')
-sys.path.append('../train')
+# print(os.path.dirname(os.path.abspath(__file__)))
+print()
+#获取当前脚本路径
+# base_path = os.path.dirname(os.path.abspath(__file__))
+# #将该路径添加到环境变量中
+# sys .path.append(base_path)
+parentdir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(parentdir)
+sys.path.append(os.path.join(parentdir,'./train'))
+sys.path.append(os.path.join(parentdir,'../helper'))
 import argparse
 
 import torch
@@ -15,15 +23,16 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import numpy as np
+import cv2
 import h5py
 import pickle
 import copy
 
-import delf_helper
+from helper import delf_helper
 from train.delf import Delf_V1
 from pca import DelfPCA
 from folder import ImageFolder
-from utils import mkdir_p, Bar, AverageMeter
+from utils import mkdir_p, AverageMeter#, Bar
 
 __DEBUG__ = False
 
@@ -164,7 +173,7 @@ class FeatureExtractor():
             pca_vars = copy.deepcopy(self.pca_vars)
             pca_matrix = copy.deepcopy(self.pca_matrix)
             pca_dims = copy.deepcopy(self.pca_dims)
-            workers = 4
+            workers = 1
         try:
             output = delf_helper.GetDelfFeatureFromMultiScale(
                 x = x,
@@ -241,7 +250,7 @@ class FeatureExtractor():
         batch_timer = AverageMeter()
         data_timer = AverageMeter()
         since = time.time()
-
+        
         # dataloader.
         dataset = ImageFolder(
             root = input_path,
@@ -253,7 +262,7 @@ class FeatureExtractor():
             num_workers = 0)
         feature_maps = []
         if self.mode.lower() in ['pca']:
-            bar = Bar('[{}]{}'.format(self.mode.upper(), self.title), max=len(self.dataloader))
+            # bar = Bar('[{}]{}'.format(self.mode.upper(), self.title), max=len(self.dataloader))
             for batch_idx, (inputs, _, filename) in enumerate(self.dataloader):
                 # image size upper limit.
                 if not (len(inputs.size()) == 4):
@@ -291,9 +300,9 @@ class FeatureExtractor():
                     size=len(self.dataloader),
                     data=data_timer.val,
                     bt=batch_timer.val,
-                    tt=bar.elapsed_td)
+                    tt=0)#bar.elapsed_td
                 print(log_msg)
-                bar.next()
+                # bar.next()
                 print('\nnumber of selected features so far: {}'.format(len(feature_maps)))
                 if len(feature_maps) >= 10000000:        # UPPER LIMIT.
                     break;
@@ -308,7 +317,7 @@ class FeatureExtractor():
             self.pca(feature_maps)
         
         else:
-            bar = Bar('[{}]{}'.format(self.mode.upper(), self.title), max=len(self.dataloader))
+            # bar = Bar('[{}]{}'.format(self.mode.upper(), self.title), max=len(self.dataloader))
             assert self.mode.lower() in ['delf']
             feature_maps = []
             for batch_idx, (inputs, labels, filename) in enumerate(self.dataloader):
@@ -328,14 +337,16 @@ class FeatureExtractor():
                 
                 data_timer.update(time.time() - since)
                 # prepare inputs
+                source_input = inputs
                 if __is_cuda__():
                     inputs = __cuda__(inputs)
                 inputs = __to_var__(inputs)
                     
                 # get delf everything (score, feature, etc.)
                 delf_feature = self.__extract_delf_feature__(inputs.data, filename, mode='delf')
-                if delf_feature is not None:
-                    feature_maps.append(delf_feature)
+
+                # if delf_feature is not None:
+                #     feature_maps.append(delf_feature)
                
                 # log.
                 batch_timer.update(time.time() - since)
@@ -347,9 +358,9 @@ class FeatureExtractor():
                     size=len(self.dataloader),
                     data=data_timer.val,
                     bt=batch_timer.val,
-                    tt=bar.elapsed_td)
+                    tt=0)#bar.elapsed_td
                 print(log_msg)
-                bar.next()
+                # bar.next()
                 
                 # free GPU cache every.
                 if batch_idx % 10 == 0:
@@ -357,9 +368,142 @@ class FeatureExtractor():
                     if __DEBUG__:
                         print('GPU Memory flushed !!!!!!!!!')
                 
+                save_path = "/media/liesmars/SSD1/vearch/plugin/src/streetView/DeLF-pytorch/extract/output"
+                img_path = "/media/liesmars/SSD1/vearch/plugin/src/streetView/DeLF-pytorch/extract/testdata/_9oMPkzl60LSzvxIlG2FZA(22.279587,114.167117)"
+                if True:
+                    # for b in range(len(inputs)):
+                    imgname = delf_feature["filename"][0]
+                    # img = source_input.squeeze().numpy()*255
+                    # img = img.astype(np.uint8)
+
+                    img=cv2.imread(os.path.join(img_path, imgname))
+                    # print(img)
+                    
+                    # cv2.imshow('image', img)
+                    # cv2.waitKey(100)
+                    feature_loc = delf_feature["location_np_list"]
+      
+                    for loc in feature_loc:
+                        # cv2.circle(img, )
+                        img = cv2.circle(img,(int(loc[0]),int(loc[1])),2,(0,0,230),-1)
+                    
+                    cv2.imwrite(os.path.join(save_path, imgname), img)
+                    print("save")
+
+                    # 可视化注意力
+                    # 可视化特征分布
+                    # 网格约束
+                    # print(delf_feature)
+                    # print(inputs.numpy())
+                    # print(len(inputs))
+            # print(source_input.numpy())
             # use pickle to save DeLF features.
-            self.__save_delf_features_to_file__(feature_maps, output_path)
-                
+            # self.__save_delf_features_to_file__(feature_maps, output_path)
+    
+    def extractSingle(self, image, input_path):
+        '''extract features from single image without batch process.
+        '''
+        assert self.mode.lower() == 'delf'
+        batch_timer = AverageMeter()
+        data_timer = AverageMeter()
+        since = time.time()
+        
+        # dataloader.
+        # dataset = ImageFolder(
+        #     root = input_path,
+        #     transform = transforms.ToTensor())
+        # self.dataloader = torch.utils.data.DataLoader(
+        #     dataset = dataset,
+        #     batch_size = 1,
+        #     shuffle = True,
+        #     num_workers = 0)
+        # print(inputs.size())
+        if type(image) is np.ndarray:
+            inputs = transforms.ToTensor()(image)
+            if len(image.shape) == 3:
+                inputs = torch.unsqueeze(inputs,0)
+
+        # feature_maps = []
+        # for batch_idx, (inputs, labels, filename) in enumerate(self.dataloader):
+            # image size upper limit.
+        if not (len(inputs.size()) == 4):
+            # if __DEBUG__:
+            print('wrong input dimenstion! ({},{})'.format(input_path, inputs.size()))
+ 
+        if not (inputs.size(2)*inputs.size(3) <= 1200*1200):
+            # if __DEBUG__:
+            print('passed: image size too large! ({},{})'.format(input_path, inputs.size()))
+
+        if not (inputs.size(2) >= 112 and inputs.size(3) >= 112):
+            # if __DEBUG__:
+            print('passed: image size too small! ({},{})'.format(input_path, inputs.size()))
+        
+            
+        data_timer.update(time.time() - since)
+        # prepare inputs
+        source_input = inputs
+        if __is_cuda__():
+            inputs = __cuda__(inputs)
+        inputs = __to_var__(inputs)
+        # get delf everything (score, feature, etc.)
+        delf_feature = self.__extract_delf_feature__(inputs.data, input_path, mode='delf')
+        
+        # if delf_feature is not None:
+        #     feature_maps.append(delf_feature)
+        
+        # log.
+        batch_timer.update(time.time() - since)
+        since = time.time()
+        # log_msg  = ('\n[Extract][Processing:({batch}/{size})] '+ \
+        #             'eta: (data:{data:.3f}s),(batch:{bt:.3f}s),(total:{tt:})') \
+        # .format(
+        #     batch=batch_idx + 1,
+        #     size=len(self.dataloader),
+        #     data=data_timer.val,
+        #     bt=batch_timer.val,
+        #     tt=0)#bar.elapsed_td
+        # print(log_msg)
+        # bar.next()
+        
+        # free GPU cache every.
+        # if batch_idx % 10 == 0:
+        #     torch.cuda.empty_cache()
+        #     if __DEBUG__:
+        #         print('GPU Memory flushed !!!!!!!!!')
+        
+        # save_path = "/media/liesmars/SSD1/vearch/plugin/src/streetView/DeLF-pytorch/extract/output"
+        # img_path = "/media/liesmars/SSD1/vearch/plugin/src/streetView/DeLF-pytorch/extract/testdata/_9oMPkzl60LSzvxIlG2FZA(22.279587,114.167117)"
+        # if True:
+        #     # for b in range(len(inputs)):
+        #     imgname = delf_feature["filename"][0]
+        #     # img = source_input.squeeze().numpy()*255
+        #     # img = img.astype(np.uint8)
+
+        #     img=cv2.imread(os.path.join(img_path, imgname))
+        #     # print(img)
+            
+        #     # cv2.imshow('image', img)
+        #     # cv2.waitKey(100)
+        #     feature_loc = delf_feature["location_np_list"]
+
+        #     for loc in feature_loc:
+        #         # cv2.circle(img, )
+        #         img = cv2.circle(img,(int(loc[0]),int(loc[1])),2,(0,0,230),-1)
+            
+        #     cv2.imwrite(os.path.join(save_path, imgname), img)
+        #     print("save")
+
+            # 可视化注意力
+            # 可视化特征分布
+            # 网格约束
+            # print(delf_feature)
+            # print(inputs.numpy())
+            # print(len(inputs))
+        print("extract time:{}s".format(batch_timer.val))
+        return delf_feature
+        # print(source_input.numpy())
+        # use pickle to save DeLF features.
+        # self.__save_delf_features_to_file__(feature_maps, output_path)    
 
 if __name__ == "__main__":
     MODE = 'delf'           # either "delf" or "pca"
@@ -376,8 +520,8 @@ if __name__ == "__main__":
     
     MODEL_NAME = 'ldmk'
     
-    LOAD_FROM = 'archive/model/{}/keypoint/ckpt/fix.pth.tar'.format(MODEL_NAME)
-    PCA_PARAMETERS_PATH = 'archive/pca/{}/pca.h5'.format(MODEL_NAME)
+    LOAD_FROM = '../pretrained_model/model/keypoint/ckpt/fix.pth.tar'
+    PCA_PARAMETERS_PATH = '../pretrained_model/pca/pca.h5'
 
     extractor_config = {
         # params for feature extraction.
@@ -402,17 +546,17 @@ if __name__ == "__main__":
     extractor = FeatureExtractor(extractor_config)
     if MODE.lower() in ['pca']:
         OUTPUT_PATH = 'dummy'
-        INPUT_PATH = 'your_path_to_dataset'
+        INPUT_PATH = '/media/liesmars/SSD1/vearch/plugin/images/streetView'
         extractor.extract(INPUT_PATH, OUTPUT_PATH)
     
     elif MODE.lower() in ['delf']:
         # query
-        INPUT_PATH = 'your_path_to_dataset'
-        OUTPUT_PATH = 'archive/delf.batch/{}/oxf5k_query.delf'.format(MODEL_NAME)
-        extractor.extract(INPUT_PATH, OUTPUT_PATH)
+        # INPUT_PATH = '/media/liesmars/SSD1/vearch/plugin/images/streetView'
+        # OUTPUT_PATH = './output/123.delf'
+        # extractor.extract(INPUT_PATH, OUTPUT_PATH)
         # index
-        INPUT_PATH = 'data/oxf5k/index'
-        OUTPUT_PATH = 'archive/delf.batch/{}/oxf5k_index.delf'.format(MODEL_NAME)
+        INPUT_PATH = '/media/liesmars/SSD1/vearch/plugin/src/streetView/DeLF-pytorch/extract/testdata'
+        OUTPUT_PATH = './output/123.delf'
         extractor.extract(INPUT_PATH, OUTPUT_PATH)
 
 

@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 
-from utils import Bar, Logger, AverageMeter, compute_precision_top_k, mkdir_p
+from utils import Logger, AverageMeter, compute_precision_top_k, mkdir_p
     
 '''helper functions.
 '''
@@ -122,7 +122,7 @@ class Solver(object):
             #confusion_matrix = ConusionMeter()
         
         since = time.time()
-        bar = Bar('[{}]{}'.format(mode.upper(), self.title), max=len(dataloader))
+        # bar = Bar('[{}]{}'.format(mode.upper(), self.title), max=len(dataloader))
         for batch_idx, (inputs, labels) in enumerate(dataloader):
             # measure data loading time
             data_timer.update(time.time() - since)
@@ -131,13 +131,15 @@ class Solver(object):
             if mode in ['train']:
                 if __is_cuda__():
                     inputs = inputs.cuda()
-                    labels = labels.cuda(async=True)
+                    # labels = labels.cuda(async=True)
+                    labels = labels.cuda()
                 inputs = __to_var__(inputs)
                 labels = __to_var__(labels)
             elif mode in ['val']:
                 if __is_cuda__():
                     inputs = inputs.cuda()
-                    labels = labels.cuda(async=True)
+                    # labels = labels.cuda(async=True)
+                    labels = labels.cuda()
                 inputs = __to_var__(inputs, volatile=True)
                 labels = __to_var__(labels, volatile=False)
             
@@ -157,10 +159,15 @@ class Solver(object):
                 __to_tensor__(labels),
                 top_k=(1,3,5))
             batch_size = inputs.size(0)
-            prec_losses.update(__to_tensor__(loss)[0], batch_size)
-            prec_top1.update(prec_1[0], batch_size)
-            prec_top3.update(prec_3[0], batch_size)
-            prec_top5.update(prec_5[0], batch_size)
+
+            # prec_losses.update(__to_tensor__(loss)[0], batch_size)
+            # prec_top1.update(prec_1[0], batch_size)
+            # prec_top3.update(prec_3[0], batch_size)
+            # prec_top5.update(prec_5[0], batch_size)
+            prec_losses.update(loss.item(), batch_size)
+            prec_top1.update(prec_1.item(), batch_size)
+            prec_top3.update(prec_3.item(), batch_size)
+            prec_top5.update(prec_5.item(), batch_size)
             
             # measure elapsed time
             batch_timer.update(time.time() - since)
@@ -170,7 +177,7 @@ class Solver(object):
             log_msg = ('\n[{mode}][epoch:{epoch}][iter:({batch}/{size})]'+
                         '[lr:{lr}] loss: {loss:.4f} | top1: {top1:.4f} | ' +
                         'top3: {top3:.4f} | top5: {top5:.4f} | eta: ' +
-                        '(data:{dt:.3f}s),(batch:{bt:.3f}s),(total:{tt:})') \
+                        '(data:{dt:.3f}s),(batch:{bt:.3f}s)') \
                         .format(
                             mode=mode,
                             epoch=self.epoch+1,
@@ -182,11 +189,10 @@ class Solver(object):
                             top3=prec_top3.avg,
                             top5=prec_top5.avg,
                             dt=data_timer.val,
-                            bt=batch_timer.val,
-                            tt=bar.elapsed_td)
+                            bt=batch_timer.val)#,tt=bar.elapsed_td ,(total:{tt:})
             print(log_msg)
-            bar.next()
-        bar.finish()
+        #     bar.next()
+        # bar.finish()
 
         # write to logger
         self.logger[mode].append([self.epoch+1,

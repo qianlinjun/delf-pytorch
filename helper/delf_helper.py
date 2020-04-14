@@ -23,8 +23,8 @@ def GenerateCoordinates(h,w):
     '''generate coorinates
     Returns: [h*w, 2] FloatTensor
     '''
-    x = torch.floor(torch.arange(0, w*h) / w)
-    y = torch.arange(0, w).repeat(h)
+    x = torch.floor(torch.arange(0., w*h) / w)
+    y = torch.arange(0., w).repeat(h)
 
     coord = torch.stack([x,y], dim=1)
     return coord
@@ -157,6 +157,7 @@ def GetDelfFeatureFromMultiScale(
                     use_pca):
             scale for scale in scale_list
         }
+        
         for future in as_completed(futures):
             (selected_boxes, selected_features, 
             selected_scales, selected_scores, 
@@ -283,6 +284,9 @@ def GetDelfFeatureFromSingleScale(
 
     # use attention score to select feature.
     indices = None
+    # attn_thres = scaled_scores.mean()
+    # indices = torch.gt(scaled_scores, attn_thres).nonzero().squeeze()
+
     while(indices is None or len(indices) == 0):
         indices = torch.gt(scaled_scores, attn_thres).nonzero().squeeze()
         attn_thres = attn_thres * 0.5   # use lower threshold if no indexes are found.

@@ -1,0 +1,13 @@
+python extractor.py \
+    --gpu_id 0 \
+    --load_expr 'delf' \
+    --mode 'delf' \
+    --stage 'inference' \
+    --batch_size 1 \
+    --attn_thres 0.31 \
+    --iou_thres 0.92 \
+    --top_k 1000 \
+    --use_pca True \
+    --pca_dims 40 \
+    --input_path /media/liesmars/SSD1/vearch/plugin/images/streetView \
+    --output_path /media/liesmars/SSD1/vearch/plugin/images/streetView

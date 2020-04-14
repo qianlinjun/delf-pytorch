@@ -31,6 +31,8 @@ You can train pca and get delf feature files by simply changing the hyperparamet
 
 
 ### How to train pca?
+source activate FCOS
+sh extract.sh
 modify hyperparameters in `extract.py`,  
 and run `python extract.py`
 

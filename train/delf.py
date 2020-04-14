@@ -157,12 +157,12 @@ class Delf_V1(nn.Module):
 
             # load weights.
             if self.stage in ['keypoint']:
-                load_dict = torch.load(self.load_from)
+                load_dict = torch.load(self.load_from,map_location='cpu')
                 __load_weights_from__(self.module_dict, load_dict, modulenames=['base'])
                 __freeze_weights__(self.module_dict, freeze=['base'])
                 print('load model from "{}"'.format(load_from))
             elif self.stage in ['inference']:
-                load_dict = torch.load(self.load_from)
+                load_dict = torch.load(self.load_from,map_location='cpu')
                 __load_weights_from__(self.module_dict, load_dict, modulenames=['base','attn','pool'])
                 print('load model from "{}"'.format(load_from))
                 
@@ -250,7 +250,7 @@ class Delf_V1(nn.Module):
         if self.stage in ['finetune']:
             x = self.__forward_and_save__(x, 'base')
             x = self.__forward_and_save__(x, 'layer4')
-            x = self.__forward_and_save__(x, 'pool')
+            x = self.__forward_and_save__(x, 'pool')#WeightedSum2d
             x = self.__forward_and_save__(x, 'logits')
         elif self.stage in ['keypoint']:
             if self.use_random_gamma_rescale:
@@ -262,6 +262,7 @@ class Delf_V1(nn.Module):
                 attn_x = F.normalize(x, p=2, dim=1)
             else:
                 attn_x = x
+            # 2x 1x1 convsoftplus
             attn_score = self.__forward_and_save__(x, 'attn')
             x = self.__forward_and_save__([attn_x, attn_score], 'pool')
             x = self.__forward_and_save__(x, 'logits')
